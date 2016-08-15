@@ -1,0 +1,10 @@
+{
+  "appName": {
+    "message": "Pentaho JS Viewer for Github",
+    "description": "The name of the application"
+  },
+  "appDescription": {
+    "message": "Pentaho stores its JS inside of XML files without using CDATA. So these files end up having too many escape sequences. This makes it possible to view diffs in github without having to manually escape those.",
+    "description": "The description of the application"
+  }
+}
