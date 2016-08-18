@@ -1,11 +1,44 @@
 'use strict';
 
+/**
+ * Given an xml string, unescapes xml
+ * @param {string} encoded
+ * @returns {string}
+ */
 function decodeXml(encoded) {
   return $('<textarea />').html(encoded).text();
 }
-$(function(){
-  console.log('\'Allo \'Allo! Content script');
-  $('span.blob-code-inner').each(function(idx, line) {
+
+function encodeXml(decoded) {
+  return $('<textarea />').text(decoded).html();
+}
+
+/**
+ * If tagName is the tag represented by innerhtml, adds expansion under $line
+ *
+ * @param {string} innerhtml
+ * @param {jQuery} $line
+ * @param {string} tagName
+ */
+function replaceTag(innerhtml, $line, tagName) {
+  if (innerhtml.startsWith(`&lt;${tagName}&gt;`) && innerhtml.endsWith(`&lt;/${tagName}&gt;`)) {
+    // decode html once. This is because github escapes html
+    innerhtml = decodeXml(innerhtml);
+    innerhtml = innerhtml.replace(`<${tagName}>`, '').replace(`</${tagName}>`, '');
+    // decode xml. This is the actual problem introduced by pentaho
+    innerhtml = decodeXml(innerhtml).replace('\r', '\n');
+    console.log(innerhtml);
+    var title = `<strong>Extracted ${tagName}</strong>`;
+    var body = `<code><pre>${encodeXml(innerhtml)}</pre></code>`;
+    var expanded = `<hr/>${title}<hr/><div>${body}</div><hr/>`;
+    var tr = $line.parents('tr');
+    $(expanded).insertAfter($line);
+  }
+}
+
+$(()=> {
+  console.log('Beginning XML Substitution');
+  $('span.blob-code-inner').each((idx, line)=> {
     var $line = $(line);
     var innerhtml = $line.html();
     var prefix = '';
@@ -14,20 +47,9 @@ $(function(){
       innerhtml = innerhtml.substring(1);
     }
     innerhtml = innerhtml.trim();
-    if (innerhtml.startsWith('&lt;jsScript_script&gt;') && innerhtml.endsWith('&lt;/jsScript_script&gt;')) {
-      // decode html once. This is because github escapes html
-      innerhtml = decodeXml(innerhtml);
-      innerhtml = innerhtml.replace('<jsScript_script>', '').replace('</jsScript_script>', '');
-      // decode xml. This is the actual problem introduced by pentaho
-      innerhtml = decodeXml(innerhtml);
-      var expandedJs = '<hr/>Extracted Javascript<hr/><div><code><pre>' + innerhtml + '</pre></code></div><hr/>';
-      var tr = $line.parents('tr');
-      $(expandedJs).insertAfter($line);
-      console.log(innerhtml);
-      $line.append
-    } else {
-      console.log('Line is OK');
-    }
+    replaceTag(innerhtml, $line, 'jsScript_script');
+    replaceTag(innerhtml, $line, 'sql');
+    replaceTag(innerhtml, $line, 'note');
   });
-  console.log('Sayonara Content script');
+  console.log('Done with XML Substitution');
 });
