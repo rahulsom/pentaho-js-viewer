@@ -17,39 +17,68 @@ function encodeXml(decoded) {
  * If tagName is the tag represented by innerhtml, adds expansion under $line
  *
  * @param {string} innerhtml
- * @param {jQuery} $line
- * @param {string} tagName
+ * @return {string} whether there has been a change
  */
-function replaceTag(innerhtml, $line, tagName) {
-  if (innerhtml.startsWith(`&lt;${tagName}&gt;`) && innerhtml.endsWith(`&lt;/${tagName}&gt;`)) {
-    // decode html once. This is because github escapes html
-    innerhtml = decodeXml(innerhtml);
-    innerhtml = innerhtml.replace(`<${tagName}>`, '').replace(`</${tagName}>`, '');
-    // decode xml. This is the actual problem introduced by pentaho
-    innerhtml = decodeXml(innerhtml).replace('\r', '\n');
-    console.log(innerhtml);
-    var title = `<strong>Extracted ${tagName}</strong>`;
-    var body = `<code><pre>${encodeXml(innerhtml)}</pre></code>`;
-    var expanded = `<hr/>${title}<hr/><div>${body}</div><hr/>`;
-    var tr = $line.parents('tr');
-    $(expanded).insertAfter($line);
+function replaceTag(innerhtml) {
+  var retval = '';
+  var childNodes = $(innerhtml)[0].childNodes;
+  console.table(childNodes);
+  for (var i = 0; i < childNodes.length; i++) {
+    var childNode = childNodes[i];
+    if (childNode.nodeType == 3) {
+      retval += childNode.wholeText;
+    } else {
+      var newNode = $(childNode).clone();
+      var newNodeText = newNode.text();
+      var tempNode = decodeXml(newNodeText);
+      newNode.text(tempNode);
+      var effectiveNode = $('<div/>').append(newNode).html();
+      console.log(effectiveNode);
+      retval += effectiveNode;
+    }
+  }
+  return retval;
+}
+
+var style = `
+    border: rgba(0, 0, 0, 0.27) 2px solid;
+    border-radius: 6px;
+    width: 750px;
+    margin: 10px 60px;
+    padding: 10px;
+`.replace('\n', ' ').replace('\r', ' ').replace(' +', ' ');
+
+/**
+ * Processes a given line
+ * @param {object} line
+ */
+function processLine(line) {
+  var innerhtml = $(line).html();
+  var tagOnOneLine = decodeXml(innerhtml).match(/<(.+)>.+<\/\1>/);
+  if (tagOnOneLine != null) {
+    var tagBody = innerhtml.match(/([+\-]? +&lt;.+&gt;)(.+)(&lt;\/.+&gt;)/)[2];
+    var updateContent = replaceTag($('<span />').html(tagBody));
+    console.log(`After Replace: ${updateContent}`);
+    if (updateContent != tagBody) {
+      console.log('Has changed!!');
+      var html = `<div style="${style}"><span class="blob-code-inner">${updateContent}</span></div>`;
+      $(html).insertAfter($(line));
+    }
   }
 }
 
+/**
+ * Processes files with given extension
+ * @param {string} extension
+ */
+function processExtension(extension) {
+  $(`.file-header[data-path$="\.${extension}"]`)
+      .parents('.file')
+      .find('span.blob-code-inner')
+      .each((idx, line)=> processLine(line));
+}
+
 $(()=> {
-  console.log('Beginning XML Substitution');
-  $('span.blob-code-inner').each((idx, line)=> {
-    var $line = $(line);
-    var innerhtml = $line.html();
-    var prefix = '';
-    if (innerhtml.startsWith('-') || innerhtml.startsWith('+')) {
-      prefix = innerhtml[0];
-      innerhtml = innerhtml.substring(1);
-    }
-    innerhtml = innerhtml.trim();
-    replaceTag(innerhtml, $line, 'jsScript_script');
-    replaceTag(innerhtml, $line, 'sql');
-    replaceTag(innerhtml, $line, 'note');
-  });
-  console.log('Done with XML Substitution');
+  processExtension('ktr');
+  processExtension('kjb');
 });
